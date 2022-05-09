@@ -143,6 +143,10 @@ DOCUMENTATION = '''
         description: Toggle, if true the inventory will fetch content view details that the host is tied to.
         type: boolean
         default: True
+      want_puppet_enc:
+        description: Toggle, if true the inventory will fetch the Puppet ENC values that exist for the host. 
+        type: boolean
+        default: False
       hostnames:
         description:
           - A list of templates in order of precedence to compose inventory_hostname.
@@ -303,6 +307,10 @@ class InventoryModule(BaseInventoryPlugin, Cacheable, Constructable):
             return {}
         return ret.get('all_parameters')
 
+    def _get_puppet_enc_by_id(self, hid):
+        url = "%s/api/v2/hosts/%s/enc" % (self.foreman_url, hid)
+        return self._get_json(url, [404])['data']
+
     def _get_facts_by_id(self, hid):
         url = "%s/api/v2/hosts/%s/facts" % (self.foreman_url, hid)
         return self._get_json(url)
@@ -348,6 +356,7 @@ class InventoryModule(BaseInventoryPlugin, Cacheable, Constructable):
         self.want_content_facet_attributes = report_options.get('want_content_facet_attributes', self.get_option('want_content_facet_attributes'))
         self.want_params = self.get_option('want_params')
         self.want_facts = self.get_option('want_facts')
+        self.want_enc = self.get_option('want_puppet_enc')
         self.host_filters = self.get_option('host_filters')
 
         params["Organization"] = options[self.want_organization]
@@ -362,6 +371,7 @@ class InventoryModule(BaseInventoryPlugin, Cacheable, Constructable):
         params["Smart Proxies"] = options[self.want_smart_proxies]
         params["Content Attributes"] = options[self.want_content_facet_attributes]
         params["Host Parameters"] = options[self.want_params]
+        params["Puppet ENC"] = options[self.want_enc]
         if self.host_filters:
             params["Hosts"] = self.host_filters
         return params
@@ -634,6 +644,10 @@ class InventoryModule(BaseInventoryPlugin, Cacheable, Constructable):
             # set host vars from facts
             if self.get_option('want_facts'):
                 self.inventory.set_variable(host_name, 'foreman_facts', self._get_facts(host))
+
+            # set host vars from enc
+            if self.get_option('want_puppet_enc'):
+                self.inventory.set_variable(host_name, 'foreman_enc', self._get_puppet_enc_by_id(host['id']))
 
             # create group for host collections
             if self.get_option('want_hostcollections'):
